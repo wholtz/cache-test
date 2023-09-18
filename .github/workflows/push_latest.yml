@@ -25,10 +25,10 @@ jobs:
       uses: docker/build-push-action@35434f557ad77672899d67f7992fb5560bda1071
       with:
         push: false
-        tags: ghcr.io/wholtz/cache-test/stage2:latest
+        tags: ghcr.io/wholtz/cachetest/stage2:latest
         cache-from: |
-          type=registry,ref=ghcr.io/wholtz/cache-test/stage1:latest
-          type=registry,ref=ghcr.io/wholtz/cache-test/stage2:latest
+          type=registry,ref=ghcr.io/wholtz/cachetest/stage1:latest
+          type=registry,ref=ghcr.io/wholtz/cachetest/stage2:latest
         cache-to: type=inline
     - name: Push stage1 image
       id: docker_stage1_push
@@ -36,9 +36,9 @@ jobs:
       with:
         target: stage1
         push: true
-        tags: ghcr.io/wholtz/cache-test/stage1:latest
+        tags: ghcr.io/wholtz/cachetest/stage1:latest
         cache-from: |
-          type=registry,ref=ghcr.io/wholtz/cache-test/stage1:latest
+          type=registry,ref=ghcr.io/wholtz/cachetest/stage1:latest
         cache-to: type=inline
     - name: Push stage2 image
       id: docker_push
@@ -46,8 +46,8 @@ jobs:
       with:
         target: stage2
         push: true
-        tags: ghcr.io/wholtz/cache-test/stage2:latest
+        tags: ghcr.io/wholtz/cachetest/stage2:latest
         cache-from: |
-          type=registry,ref=ghcr.io/wholtz/cache-test/stage1:latest
-          type=registry,ref=ghcr.io/wholtz/cache-test/stage2:latest
+          type=registry,ref=ghcr.io/wholtz/cachetest/stage1:latest
+          type=registry,ref=ghcr.io/wholtz/cachetest/stage2:latest
         cache-to: type=inline
