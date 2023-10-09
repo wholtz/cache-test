@@ -3,8 +3,6 @@ name: Test caching with multistage build
 on:
   workflow_dispatch:
   push:
-    branches:
-      - 'main'
 
 
 jobs:
