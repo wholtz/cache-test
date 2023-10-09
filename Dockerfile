@@ -5,3 +5,5 @@ COPY foo.txt /foo.txt
 FROM debian:bookworm-slim AS stage2
 
 COPY --from=stage1 /foo.txt /copy-of-foo.txt
+COPY --from=stage1 /foo.txt /copy-of-foo2.txt
+
