@@ -6,9 +6,13 @@ on:
     branches:
       - 'main'
 
+
 jobs:
   build_docker_image_and_push:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
     steps:
     - name: Checkout source
       uses: actions/checkout@27135e314dd1818f797af1db9dae03a9f045786b
