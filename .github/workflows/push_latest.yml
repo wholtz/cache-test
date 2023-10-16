@@ -31,7 +31,6 @@ jobs:
       uses: docker/build-push-action@35434f557ad77672899d67f7992fb5560bda1071
       with:
         push: true
-        tags: ${{ env.REGISTRY}}/${{ env.BASE_NAME }}:latest
-        cache-from: |
-          type=registry,ref=${{ env.REGISTRY}}/${{ env.BASE_NAME }}:latest
-        cache-to: type=registry,ref=${{ env.REGISTRY}}/${{ env.BASE_NAME }}_buildcache:latest,mode=max
+        tags: ${{ env.REGISTRY }}/${{ env.BASE_NAME }}:latest
+        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.BASE_NAME }}_buildcache:latest
+        cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.BASE_NAME }}_buildcache:latest,mode=max
