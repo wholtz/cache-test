@@ -34,4 +34,4 @@ jobs:
         tags: ${{ env.REGISTRY}}/${{ env.BASE_NAME }}:latest
         cache-from: |
           type=registry,ref=${{ env.REGISTRY}}/${{ env.BASE_NAME }}:latest
-        cache-to: type=inline
+        cache-to: type=registry,ref=${{ env.REGISTRY}}/${{ env.BASE_NAME }}_buildcache:latest,mode=max
