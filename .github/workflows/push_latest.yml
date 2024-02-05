@@ -1,4 +1,5 @@
-name: Build and push cache-test
+name: Test caching with multistage build
+
 
 on:
   workflow_dispatch:
@@ -13,6 +14,7 @@ env:
   PROJECT: 'wholtz'
   REPO: 'cache-test'
 
+
 jobs:
   build_docker_image_and_push:
     runs-on: ubuntu-22.04
@@ -22,10 +24,6 @@ jobs:
          - debian:bookworm-slim
          - debian:bullseye-slim
     steps:
-    - name: Install GNU parallel and shellcheck
-      run: sudo apt-get install --no-install-recommends -y parallel shellcheck
-    - name: Setup nox
-      uses: wntrblm/nox@119fd00cbb7584127e6deae5c1e4c1c9811f850e
     - name: Checkout source
       uses: actions/checkout@27135e314dd1818f797af1db9dae03a9f045786b
       with:
@@ -101,7 +99,6 @@ jobs:
       id: docker_build
       uses: docker/build-push-action@35434f557ad77672899d67f7992fb5560bda1071
       with:
-        platforms: ${{ steps.set_image_variables.outputs.platforms }}
         push: false
         build-args: |
           BASE_IMAGE=${{ matrix.image }}
@@ -115,7 +112,7 @@ jobs:
       id: docker_push
       uses: docker/build-push-action@35434f557ad77672899d67f7992fb5560bda1071
       with:
-        platforms: ${{ steps.set_image_variables.outputs.platforms }}
+        target: stage2
         push: true
         build-args: |
           BASE_IMAGE=${{ matrix.image }}
