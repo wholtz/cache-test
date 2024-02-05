@@ -1,17 +1,92 @@
 name: Test caching with multistage build
 
+
 on:
   workflow_dispatch:
   push:
     branches:
       - 'main'
+    tags:
+      - 'v*'
+
+env:
+  DEFAULT_BASE_IMAGE: 'debian:bullseye-slim'
+  PROJECT: 'wholtz'
+  REPO: 'cache-test'
+
 
 jobs:
   build_docker_image_and_push:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        image:
+         - debian:bookworm-slim
+         - debian:bullseye-slim
     steps:
     - name: Checkout source
       uses: actions/checkout@27135e314dd1818f797af1db9dae03a9f045786b
+      with:
+        submodules: recursive
+    - name: Get short git hash
+      id: short_hash
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    - name: Get micromamba version
+      id: get_version
+      run: echo "version=$(grep '^ARG VERSION=' Dockerfile  | cut -d= -f2)" >> $GITHUB_OUTPUT
+    - name: Set image variables
+      id: set_image_variables
+      env:
+        IMAGE: ${{ matrix.image }}
+      run: |
+        if [ "${IMAGE%%:*}" = "nvidia/cuda" ]; then
+          declare -A code_name
+          code_name[22.04]=jammy
+          code_name[20.04]=focal
+          code_name[18.04]=bionic
+          ubuntu_version_number="${IMAGE##*-ubuntu}"
+          tag="${IMAGE##*:}"
+          cuda_version="${tag%%-*}"
+          echo "tag=${code_name[$ubuntu_version_number]}-cuda-${cuda_version}" >> $GITHUB_OUTPUT
+          echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+        elif [ "${IMAGE%%:*}" = "frolvlad/alpine-glibc" ]; then
+          echo "tag=alpine" >> $GITHUB_OUTPUT
+          echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+        else
+          echo "tag=$(echo "$IMAGE" | cut -d: -f2)" >> $GITHUB_OUTPUT
+          echo "platforms=linux/amd64,linux/arm64,linux/ppc64le" >> $GITHUB_OUTPUT
+        fi
+        echo "is_default=$([ "$IMAGE" = "$DEFAULT_BASE_IMAGE" ] && echo true || echo false)" >> $GITHUB_OUTPUT
+        echo "uid=$([[ $IMAGE =~ "lunar" ]] && echo 57439 || echo 1000)" >> $GITHUB_OUTPUT
+        echo "gid=$([[ $IMAGE =~ "lunar" ]] && echo 57439 || echo 1000)" >> $GITHUB_OUTPUT
+    - name: Get docker metadata
+      id: get_metadata
+      uses: docker/metadata-action@3343011071fa59c64a174cc6aa415dc13b31b7b2
+      with:
+        images: |
+          ghcr.io/${PROJECT}/${REPO}
+        flavor: latest=false
+        # latest
+        # base_image
+        # major.minor.patch
+        # major.minor
+        # major
+        # major.minor.patch-base_image
+        # major.minor-base_image
+        # major-base_image
+        # git-commit-base_image
+        # git-commit
+        tags: |
+            type=raw,value=latest,priority=1000,enable=${{ steps.set_image_variables.outputs.is_default }}
+            type=raw,value=${{ steps.set_image_variables.outputs.tag }},priority=900
+            type=semver,pattern={{version}},enable=${{ steps.set_image_variables.outputs.is_default }},value=${{ steps.get_version.outputs.version }},priority=800
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.set_image_variables.outputs.is_default }},value=${{ steps.get_version.outputs.version }},priority=700
+            type=semver,pattern={{major}},enable=${{ steps.set_image_variables.outputs.is_default }},value=${{ steps.get_version.outputs.version }},priority=600
+            type=semver,pattern={{version}}-${{ steps.set_image_variables.outputs.tag }},value=${{ steps.get_version.outputs.version }},priority=500
+            type=semver,pattern={{major}}.{{minor}}-${{ steps.set_image_variables.outputs.tag}},value=${{ steps.get_version.outputs.version }},priority=400
+            type=semver,pattern={{major}}-${{ steps.set_image_variables.outputs.tag}},value=${{ steps.get_version.outputs.version }},priority=300
+            type=sha,prefix=git-,suffix=-${{ steps.set_image_variables.outputs.tag }},priority=200
+            type=sha,prefix=git-,enable=${{ steps.set_image_variables.outputs.is_default }},priority=100
     - name: Setup docker buildx
       uses: docker/setup-buildx-action@07aea5fc9c8874ece2fab5ca5c18fdfc5d526272
     - name: Login to GHCR
@@ -25,29 +100,25 @@ jobs:
       uses: docker/build-push-action@35434f557ad77672899d67f7992fb5560bda1071
       with:
         push: false
-        tags: ghcr.io/wholtz/cacheteststage2:latest
-        cache-from: |
-          type=registry,ref=ghcr.io/wholtz/cacheteststage1:latest
-          type=registry,ref=ghcr.io/wholtz/cacheteststage2:latest
-        cache-to: type=inline
-    - name: Push stage1 image
-      id: docker_stage1_push
-      uses: docker/build-push-action@35434f557ad77672899d67f7992fb5560bda1071
-      with:
-        target: stage1
-        push: true
-        tags: ghcr.io/wholtz/cacheteststage1:latest
-        cache-from: |
-          type=registry,ref=ghcr.io/wholtz/cacheteststage1:latest
-        cache-to: type=inline
-    - name: Push stage2 image
+        build-args: |
+          BASE_IMAGE=${{ matrix.image }}
+          MAMBA_USER_ID=${{ steps.set_image_variables.outputs.uid }}
+          MAMBA_USER_GID=${{ steps.set_image_variables.outputs.gid }}
+        tags: ${{ steps.get_metadata.outputs.tags }}
+        labels: ${{ steps.get_metadata.outputs.labels}}
+        cache-from: type=registry,ref=ghcr.io/${PROJECT}/${REPO}-buildcache:${{ steps.set_image_variables.outputs.tag }}
+        cache-to: type=registry,ref=ghcr.io/${PROJECT}/${REPO}-buildcache:${{ steps.set_image_variables.outputs.tag }},mode=max
+    - name: Push Docker images
       id: docker_push
       uses: docker/build-push-action@35434f557ad77672899d67f7992fb5560bda1071
       with:
         target: stage2
         push: true
-        tags: ghcr.io/wholtz/cacheteststage2:latest
-        cache-from: |
-          type=registry,ref=ghcr.io/wholtz/cacheteststage1:latest
-          type=registry,ref=ghcr.io/wholtz/cacheteststage2:latest
-        cache-to: type=inline
+        build-args: |
+          BASE_IMAGE=${{ matrix.image }}
+          MAMBA_USER_ID=${{ steps.set_image_variables.outputs.uid }}
+          MAMBA_USER_GID=${{ steps.set_image_variables.outputs.gid }}
+        tags: ${{ steps.get_metadata.outputs.tags }}
+        labels: ${{ steps.get_metadata.outputs.labels}}
+        cache-from: type=registry,ref=ghcr.io/${PROJECT}/${REPO}-buildcache:${{ steps.set_image_variables.outputs.tag }}
+        cache-to: type=registry,ref=ghcr.io/${PROJECT}/${REPO}-buildcache:${{ steps.set_image_variables.outputs.tag }},mode=max
